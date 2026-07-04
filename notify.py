@@ -74,6 +74,10 @@ def create_default_config():
         "pc_name": "My-PC",
         "log_file": "notify_log.txt",
     }
+    cfg["Mention"] = {
+        "enabled": "false",
+        "user_id": "",
+    }
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         cfg.write(f)
 
@@ -101,12 +105,21 @@ def load_config():
         print("webhook_url is empty in config.ini — set it to your Discord webhook URL and try again.")
         sys.exit(1)
 
+    mention_enabled = cfg.getboolean("Mention", "enabled", fallback=False)
+    mention_user_id = cfg.get("Mention", "user_id", fallback="").strip()
+
+    if mention_enabled and not mention_user_id:
+        print("Mention is enabled in config.ini but user_id is empty — mentions will be skipped.")
+        mention_enabled = False
+
     return {
         "webhook_url": webhook_url,
         "username": username,
         "avatar_url": avatar_url,
         "pc_name": pc_name,
         "log_file": log_file,
+        "mention_enabled": mention_enabled,
+        "mention_user_id": mention_user_id,
     }
 
 
@@ -172,6 +185,12 @@ def send_discord(config, command, message, screenshot_buf=None):
     payload = {"username": config["username"], "embeds": [embed]}
     if config["avatar_url"]:
         payload["avatar_url"] = config["avatar_url"]
+
+    if config.get("mention_enabled") and config.get("mention_user_id"):
+        payload["content"] = f"<@{config['mention_user_id']}>"
+        # allowed_mentions restricts pings to just this user, so nothing else
+        # in the embed/content can accidentally mass-ping the server
+        payload["allowed_mentions"] = {"parse": [], "users": [config["mention_user_id"]]}
 
     try:
         if screenshot_buf:
